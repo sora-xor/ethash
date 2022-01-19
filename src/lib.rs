@@ -54,8 +54,8 @@ pub fn get_full_size(epoch: usize) -> u64 {
 
 fn fill_sha512(input: &[u8], a: &mut [u8], from_index: usize) {
     let mut hasher = Keccak512::default();
-    hasher.input(input);
-    let out = hasher.result();
+    hasher.update(input);
+    let out = hasher.finalize();
     for i in 0..out.len() {
         a[from_index + i] = out[i];
     }
@@ -63,8 +63,8 @@ fn fill_sha512(input: &[u8], a: &mut [u8], from_index: usize) {
 
 fn fill_sha256(input: &[u8], a: &mut [u8], from_index: usize) {
     let mut hasher = Keccak256::default();
-    hasher.input(input);
-    let out = hasher.result();
+    hasher.update(input);
+    let out = hasher.finalize();
     for i in 0..out.len() {
         a[from_index + i] = out[i];
     }
@@ -184,6 +184,15 @@ pub fn make_dataset(dataset: &mut [u8], cache: &[u8]) {
     }
 }
 
+pub fn get_verification_indices(epoch: usize, header_hash: H256, nonce: U64) -> [usize; ACCESSES] {
+    let cache_size = get_cache_size(epoch);
+    let mut cache = vec![0u8; cache_size];
+    let seed = get_seedhash(epoch);
+    make_cache(&mut cache[..], seed);
+    let full_size = get_full_size(epoch);
+    hashimoto_light_indices(header_hash, nonce, full_size, &cache[..])
+}
+
 /// "Main" function of Ethash, calculating the mix digest and result given the
 /// header and nonce.
 pub fn hashimoto<F: Fn(usize) -> H512>(
@@ -199,16 +208,16 @@ pub fn hashimoto<F: Fn(usize) -> H512>(
         lookup,
         |data| {
             let mut hasher = Keccak256::default();
-            hasher.input(&data);
+            hasher.update(&data);
             let mut res = [0u8; 32];
-            res.copy_from_slice(hasher.result().as_slice());
+            res.copy_from_slice(hasher.finalize().as_slice());
             res
         },
         |data| {
             let mut hasher = Keccak512::default();
-            hasher.input(&data);
+            hasher.update(&data);
             let mut res = [0u8; 64];
-            res.copy_from_slice(hasher.result().as_slice());
+            res.copy_from_slice(hasher.finalize().as_slice());
             res
         },
     )
@@ -283,7 +292,7 @@ pub fn hashimoto_with_hasher<
 
 pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
     header_hash: H256,
-    nonce: H64,
+    nonce: U64,
     full_size: u64,
     lookup: F,
     hasher512: HF512,
@@ -296,8 +305,7 @@ pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
     let s = {
         let mut data = [0u8; 40];
         data[..32].copy_from_slice(&header_hash.0);
-        data[32..].copy_from_slice(&nonce.0);
-        data[32..].reverse();
+        nonce.to_little_endian(&mut data[32..]);
         hasher512(&data)
     };
     let mut mix = [0u8; MIX_BYTES];
@@ -314,7 +322,7 @@ pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
         ) as u64)
             % (n / MIXHASHES_64)
             * MIXHASHES_64) as usize;
-        indices[i] = p;
+        indices[i] = p / 2;
         let mut newdata = [0u8; MIX_BYTES];
         for j in 0..MIXHASHES {
             let v = lookup(p + j);
@@ -329,7 +337,7 @@ pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
 
 pub fn hashimoto_light_indices(
     header_hash: H256,
-    nonce: H64,
+    nonce: U64,
     full_size: u64,
     cache: &[u8],
 ) -> [usize; ACCESSES] {
@@ -340,9 +348,9 @@ pub fn hashimoto_light_indices(
         |i| calc_dataset_item(cache, i),
         |data| {
             let mut hasher = Keccak512::default();
-            hasher.input(&data);
+            hasher.update(&data);
             let mut res = [0u8; 64];
-            res.copy_from_slice(hasher.result().as_slice());
+            res.copy_from_slice(hasher.finalize().as_slice());
             res
         },
     )

@@ -10,10 +10,10 @@ edition = "2018"
 ethereum-types = { version = "0.12.0", default-features = false }
 rlp = { version = "0.5", default-features = false }
 byteorder = { version = "1", default-features = false }
-sha3 = { version = "0.8", default-features = false }
+sha3 = { version = "0.10.0", default-features = false }
 
 [dev-dependencies]
-hex-literal = "0.2.1"
+hex-literal = "0.3.4"
 
 [features]
 default = ["std"]
