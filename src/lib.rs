@@ -11,6 +11,7 @@ mod miller_rabin;
 
 pub use dag::{EthereumPatch, LightDAG, Patch};
 
+use alloc::vec;
 use byteorder::{ByteOrder, LittleEndian};
 use core::ops::BitXor;
 use ethereum_types::{BigEndianHash, H256, H512, H64, U256, U64};
