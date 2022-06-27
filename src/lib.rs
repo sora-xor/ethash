@@ -294,11 +294,37 @@ pub fn hashimoto_with_hasher<
 /// nonce, skipping most of the PoW verification.
 ///
 /// It's intended to be used as prevalidation step to make sure at
-/// least some work (of finding cmix/nonce for given header) was done.
-pub fn hashimoto_pre_validate<HF256: Fn(&[u8]) -> [u8; 32], HF512: Fn(&[u8]) -> [u8; 64]>(
+/// least some work (of finding mix nonce for given header) was done.
+pub fn hashimoto_pre_validate(
     header_hash: H256,
     nonce: H64,
-    cmix: [u8; MIX_BYTES / 4],
+    mix_nonce: [u8; MIX_BYTES / 4],
+) -> (H256, H256) {
+    hashimoto_pre_validate_with_hasher(
+        header_hash,
+        nonce,
+        mix_nonce,
+        |data| {
+            let mut hasher = Keccak256::default();
+            hasher.update(&data);
+            let mut res = [0u8; 32];
+            res.copy_from_slice(hasher.finalize().as_slice());
+            res
+        },
+        |data| {
+            let mut hasher = Keccak512::default();
+            hasher.update(&data);
+            let mut res = [0u8; 64];
+            res.copy_from_slice(hasher.finalize().as_slice());
+            res
+        },
+    )
+}
+
+pub fn hashimoto_pre_validate_with_hasher<HF256: Fn(&[u8]) -> [u8; 32], HF512: Fn(&[u8]) -> [u8; 64]>(
+    header_hash: H256,
+    nonce: H64,
+    mix_nonce: [u8; MIX_BYTES / 4],
     hasher256: HF256,
     hasher512: HF512,
 ) -> (H256, H256) {
@@ -312,10 +338,10 @@ pub fn hashimoto_pre_validate<HF256: Fn(&[u8]) -> [u8; 32], HF512: Fn(&[u8]) -> 
     let result = {
         let mut data = [0u8; 64 + MIX_BYTES / 4];
         data[..64].copy_from_slice(&s);
-        data[64..].copy_from_slice(&cmix);
+        data[64..].copy_from_slice(&mix_nonce);
         hasher256(&data)
     };
-    (H256::from(cmix), H256::from(result))
+    (H256::from(mix_nonce), H256::from(result))
 }
 
 pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
@@ -468,7 +494,7 @@ pub fn get_seedhash(epoch: usize) -> H256 {
 
 #[cfg(test)]
 mod tests {
-    use crate::{EthereumPatch, LightDAG};
+    use crate::{EthereumPatch, LightDAG, hashimoto_pre_validate};
     use ethereum_types::{H256, H64};
     use hex_literal::*;
 
@@ -489,5 +515,27 @@ mod tests {
                 "543bc0769f7d5df30e7633f4a01552c2cee7baace8a6da37fddaa19e49e81209"
             ))
         );
+    }
+
+    #[test]
+    fn mix_correct() {
+        type DAG = LightDAG<EthereumPatch>;
+        let light_dag = DAG::new(0x8947a9.into());
+        // bare_hash of block#8996777 on ethereum mainnet
+        let partial_header_hash = H256::from(hex!(
+            "3c2e6623b1de8862a927eeeef2b6b25dea6e1d9dad88dca3c239be3959dc384a"
+        ));
+        let (mixh, result, mix) = light_dag
+            .hashimoto(partial_header_hash, H64::from(hex!("a5d3d0ccc8bb8a29")));
+        assert_eq!(
+            H256::from(mix),
+            H256::from(hex!(
+                "543bc0769f7d5df30e7633f4a01552c2cee7baace8a6da37fddaa19e49e81209"
+            ))
+        );
+        assert_eq!(H256::from(mix), mixh);
+        let (mixh_verif, result_verif) = hashimoto_pre_validate(partial_header_hash, H64::from(hex!("a5d3d0ccc8bb8a29")), mix);
+        assert_eq!(mixh, mixh_verif);
+        assert_eq!(result, result_verif);
     }
 }
