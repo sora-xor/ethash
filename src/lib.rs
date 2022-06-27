@@ -321,7 +321,10 @@ pub fn hashimoto_pre_validate(
     )
 }
 
-pub fn hashimoto_pre_validate_with_hasher<HF256: Fn(&[u8]) -> [u8; 32], HF512: Fn(&[u8]) -> [u8; 64]>(
+pub fn hashimoto_pre_validate_with_hasher<
+    HF256: Fn(&[u8]) -> [u8; 32],
+    HF512: Fn(&[u8]) -> [u8; 64],
+>(
     header_hash: H256,
     nonce: H64,
     mix_nonce: [u8; MIX_BYTES / 4],
@@ -494,7 +497,7 @@ pub fn get_seedhash(epoch: usize) -> H256 {
 
 #[cfg(test)]
 mod tests {
-    use crate::{EthereumPatch, LightDAG, hashimoto_pre_validate};
+    use crate::{hashimoto_pre_validate, EthereumPatch, LightDAG};
     use ethereum_types::{H256, H64};
     use hex_literal::*;
 
@@ -525,8 +528,8 @@ mod tests {
         let partial_header_hash = H256::from(hex!(
             "3c2e6623b1de8862a927eeeef2b6b25dea6e1d9dad88dca3c239be3959dc384a"
         ));
-        let (mixh, result, mix) = light_dag
-            .hashimoto(partial_header_hash, H64::from(hex!("a5d3d0ccc8bb8a29")));
+        let (mixh, result, mix) =
+            light_dag.hashimoto(partial_header_hash, H64::from(hex!("a5d3d0ccc8bb8a29")));
         assert_eq!(
             H256::from(mix),
             H256::from(hex!(
@@ -534,7 +537,11 @@ mod tests {
             ))
         );
         assert_eq!(H256::from(mix), mixh);
-        let (mixh_verif, result_verif) = hashimoto_pre_validate(partial_header_hash, H64::from(hex!("a5d3d0ccc8bb8a29")), mix);
+        let (mixh_verif, result_verif) = hashimoto_pre_validate(
+            partial_header_hash,
+            H64::from(hex!("a5d3d0ccc8bb8a29")),
+            mix,
+        );
         assert_eq!(mixh, mixh_verif);
         assert_eq!(result, result_verif);
     }
