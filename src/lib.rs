@@ -193,14 +193,14 @@ pub fn get_verification_indices(epoch: usize, header_hash: H256, nonce: U64) -> 
     hashimoto_light_indices(header_hash, nonce, full_size, &cache[..])
 }
 
-/// "Main" function of Ethash, calculating the mix digest and result given the
-/// header and nonce.
+/// "Main" function of Ethash, calculating the mix digest, result, and mix nonce
+/// (can be used to quickly verify PoW to prevent DoS) given the header and nonce.
 pub fn hashimoto<F: Fn(usize) -> H512>(
     header_hash: H256,
     nonce: H64,
     full_size: u64,
     lookup: F,
-) -> (H256, H256) {
+) -> (H256, H256, [u8; MIX_BYTES / 4]) {
     hashimoto_with_hasher(
         header_hash,
         nonce,
@@ -234,7 +234,7 @@ pub fn hashimoto_with_hasher<
     lookup: F,
     hasher256: HF256,
     hasher512: HF512,
-) -> (H256, H256) {
+) -> (H256, H256, [u8; MIX_BYTES / 4]) {
     let n = full_size / (HASH_BYTES as u64);
     let w = MIX_BYTES / WORD_BYTES;
     const MIXHASHES: usize = MIX_BYTES / HASH_BYTES;
@@ -287,10 +287,10 @@ pub fn hashimoto_with_hasher<
         data[64..].copy_from_slice(&cmix);
         hasher256(&data)
     };
-    (H256::from(cmix), H256::from(result))
+    (H256::from(cmix), H256::from(result), cmix)
 }
 
-/// Calculate the algorithm given header, mining nonce, and `cmix`
+/// Calculate the algorithm given header, mining nonce, and mix
 /// nonce, skipping most of the PoW verification.
 ///
 /// It's intended to be used as prevalidation step to make sure at
@@ -391,7 +391,7 @@ pub fn hashimoto_light(
     nonce: H64,
     full_size: u64,
     cache: &[u8],
-) -> (H256, H256) {
+) -> (H256, H256, [u8; MIX_BYTES / 4]) {
     hashimoto(header_hash, nonce, full_size, |i| {
         calc_dataset_item(cache, i)
     })
@@ -403,7 +403,7 @@ pub fn hashimoto_full(
     nonce: H64,
     full_size: u64,
     dataset: &[u8],
-) -> (H256, H256) {
+) -> (H256, H256, [u8; MIX_BYTES / 4]) {
     hashimoto(header_hash, nonce, full_size, |i| {
         let mut r = [0u8; 64];
         for j in 0..64 {
@@ -436,7 +436,7 @@ pub fn mine<T: Encodable>(
 
     let mut nonce_current = nonce_start;
     loop {
-        let (_, result) = hashimoto(
+        let (_, result, _) = hashimoto(
             H256::from_slice(Keccak256::digest(&header).as_slice()),
             nonce_current,
             full_size,

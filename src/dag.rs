@@ -43,7 +43,8 @@ impl<P: Patch> LightDAG<P> {
     }
 
     pub fn hashimoto(&self, hash: H256, nonce: H64) -> (H256, H256) {
-        crate::hashimoto_light(hash, nonce, self.full_size, &self.cache)
+        let (mix_hash, result, _) = crate::hashimoto_light(hash, nonce, self.full_size, &self.cache);
+        (mix_hash, result)
     }
 
     pub fn is_valid_for(&self, number: U256) -> bool {
