@@ -290,6 +290,34 @@ pub fn hashimoto_with_hasher<
     (H256::from(cmix), H256::from(result))
 }
 
+/// Calculate the algorithm given header, mining nonce, and `cmix`
+/// nonce, skipping most of the PoW verification.
+///
+/// It's intended to be used as prevalidation step to make sure at
+/// least some work (of finding cmix/nonce for given header) was done.
+pub fn hashimoto_pre_validate<HF256: Fn(&[u8]) -> [u8; 32], HF512: Fn(&[u8]) -> [u8; 64]>(
+    header_hash: H256,
+    nonce: H64,
+    cmix: [u8; MIX_BYTES / 4],
+    hasher256: HF256,
+    hasher512: HF512,
+) -> (H256, H256) {
+    let s = {
+        let mut data = [0u8; 40];
+        data[..32].copy_from_slice(&header_hash.0);
+        data[32..].copy_from_slice(&nonce.0);
+        data[32..].reverse();
+        hasher512(&data)
+    };
+    let result = {
+        let mut data = [0u8; 64 + MIX_BYTES / 4];
+        data[..64].copy_from_slice(&s);
+        data[64..].copy_from_slice(&cmix);
+        hasher256(&data)
+    };
+    (H256::from(cmix), H256::from(result))
+}
+
 pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
     header_hash: H256,
     nonce: U64,
