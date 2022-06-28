@@ -200,7 +200,7 @@ pub fn hashimoto<F: Fn(usize) -> H512>(
     nonce: H64,
     full_size: u64,
     lookup: F,
-) -> (H256, H256, [u8; MIX_BYTES / 4]) {
+) -> ([u8; MIX_BYTES / 4], H256) {
     hashimoto_with_hasher(
         header_hash,
         nonce,
@@ -234,7 +234,7 @@ pub fn hashimoto_with_hasher<
     lookup: F,
     hasher256: HF256,
     hasher512: HF512,
-) -> (H256, H256, [u8; MIX_BYTES / 4]) {
+) -> ([u8; MIX_BYTES / 4], H256) {
     let n = full_size / (HASH_BYTES as u64);
     let w = MIX_BYTES / WORD_BYTES;
     const MIXHASHES: usize = MIX_BYTES / HASH_BYTES;
@@ -287,7 +287,7 @@ pub fn hashimoto_with_hasher<
         data[64..].copy_from_slice(&cmix);
         hasher256(&data)
     };
-    (H256::from(cmix), H256::from(result), cmix)
+    (cmix, H256::from(result))
 }
 
 /// Calculate the algorithm given header, mining nonce, and mix
@@ -299,7 +299,7 @@ pub fn hashimoto_pre_validate(
     header_hash: H256,
     nonce: H64,
     mix_nonce: [u8; MIX_BYTES / 4],
-) -> (H256, H256) {
+) -> H256 {
     hashimoto_pre_validate_with_hasher(
         header_hash,
         nonce,
@@ -330,7 +330,7 @@ pub fn hashimoto_pre_validate_with_hasher<
     mix_nonce: [u8; MIX_BYTES / 4],
     hasher256: HF256,
     hasher512: HF512,
-) -> (H256, H256) {
+) -> H256 {
     let s = {
         let mut data = [0u8; 40];
         data[..32].copy_from_slice(&header_hash.0);
@@ -344,7 +344,7 @@ pub fn hashimoto_pre_validate_with_hasher<
         data[64..].copy_from_slice(&mix_nonce);
         hasher256(&data)
     };
-    (H256::from(mix_nonce), H256::from(result))
+    H256::from(result)
 }
 
 pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
@@ -420,7 +420,7 @@ pub fn hashimoto_light(
     nonce: H64,
     full_size: u64,
     cache: &[u8],
-) -> (H256, H256, [u8; MIX_BYTES / 4]) {
+) -> ([u8; MIX_BYTES / 4], H256) {
     hashimoto(header_hash, nonce, full_size, |i| {
         calc_dataset_item(cache, i)
     })
@@ -432,7 +432,7 @@ pub fn hashimoto_full(
     nonce: H64,
     full_size: u64,
     dataset: &[u8],
-) -> (H256, H256, [u8; MIX_BYTES / 4]) {
+) -> ([u8; MIX_BYTES / 4], H256) {
     hashimoto(header_hash, nonce, full_size, |i| {
         let mut r = [0u8; 64];
         for j in 0..64 {
@@ -465,7 +465,7 @@ pub fn mine<T: Encodable>(
 
     let mut nonce_current = nonce_start;
     loop {
-        let (_, result, _) = hashimoto(
+        let (_, result) = hashimoto(
             H256::from_slice(Keccak256::digest(&header).as_slice()),
             nonce_current,
             full_size,
@@ -509,9 +509,11 @@ mod tests {
         let partial_header_hash = H256::from(hex!(
             "3c2e6623b1de8862a927eeeef2b6b25dea6e1d9dad88dca3c239be3959dc384a"
         ));
-        let mixh = light_dag
-            .hashimoto(partial_header_hash, H64::from(hex!("a5d3d0ccc8bb8a29")))
-            .0;
+        let mixh = H256::from(
+            light_dag
+                .hashimoto(partial_header_hash, H64::from(hex!("a5d3d0ccc8bb8a29")))
+                .0,
+        );
         assert_eq!(
             mixh,
             H256::from(hex!(
@@ -528,7 +530,7 @@ mod tests {
         let partial_header_hash = H256::from(hex!(
             "3c2e6623b1de8862a927eeeef2b6b25dea6e1d9dad88dca3c239be3959dc384a"
         ));
-        let (mixh, result, mix) =
+        let (mix, result) =
             light_dag.hashimoto(partial_header_hash, H64::from(hex!("a5d3d0ccc8bb8a29")));
         assert_eq!(
             H256::from(mix),
@@ -536,13 +538,11 @@ mod tests {
                 "543bc0769f7d5df30e7633f4a01552c2cee7baace8a6da37fddaa19e49e81209"
             ))
         );
-        assert_eq!(H256::from(mix), mixh);
-        let (mixh_verif, result_verif) = hashimoto_pre_validate(
+        let result_verif = hashimoto_pre_validate(
             partial_header_hash,
             H64::from(hex!("a5d3d0ccc8bb8a29")),
             mix,
         );
-        assert_eq!(mixh, mixh_verif);
         assert_eq!(result, result_verif);
     }
 }
