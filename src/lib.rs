@@ -298,7 +298,7 @@ pub fn hashimoto_with_hasher<
 pub fn hashimoto_pre_validate(
     header_hash: H256,
     nonce: H64,
-    mix_nonce: [u8; MIX_BYTES / 4],
+    mix_nonce: &[u8; MIX_BYTES / 4],
 ) -> H256 {
     hashimoto_pre_validate_with_hasher(
         header_hash,
@@ -327,7 +327,7 @@ pub fn hashimoto_pre_validate_with_hasher<
 >(
     header_hash: H256,
     nonce: H64,
-    mix_nonce: [u8; MIX_BYTES / 4],
+    mix_nonce: &[u8; MIX_BYTES / 4],
     hasher256: HF256,
     hasher512: HF512,
 ) -> H256 {
@@ -341,7 +341,7 @@ pub fn hashimoto_pre_validate_with_hasher<
     let result = {
         let mut data = [0u8; 64 + MIX_BYTES / 4];
         data[..64].copy_from_slice(&s);
-        data[64..].copy_from_slice(&mix_nonce);
+        data[64..].copy_from_slice(mix_nonce);
         hasher256(&data)
     };
     H256::from(result)
@@ -541,7 +541,7 @@ mod tests {
         let result_verif = hashimoto_pre_validate(
             partial_header_hash,
             H64::from(hex!("a5d3d0ccc8bb8a29")),
-            mix,
+            &mix,
         );
         assert_eq!(result, result_verif);
     }
