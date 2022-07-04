@@ -185,7 +185,7 @@ pub fn make_dataset(dataset: &mut [u8], cache: &[u8]) {
     }
 }
 
-pub fn get_verification_indices(epoch: usize, header_hash: H256, nonce: U64) -> [usize; ACCESSES] {
+pub fn get_verification_indices(epoch: usize, header_hash: H256, nonce: H64) -> [usize; ACCESSES] {
     let cache_size = get_cache_size(epoch);
     let mut cache = vec![0u8; cache_size];
     let seed = get_seedhash(epoch);
@@ -350,7 +350,7 @@ pub fn hashimoto_pre_validate_with_hasher<
 
 pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
     header_hash: H256,
-    nonce: U64,
+    nonce: H64,
     full_size: u64,
     lookup: F,
     hasher512: HF512,
@@ -363,7 +363,7 @@ pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
     let s = {
         let mut data = [0u8; 40];
         data[..32].copy_from_slice(&header_hash.0);
-        nonce.to_little_endian(&mut data[32..]);
+        data[32..].copy_from_slice(&nonce.0);
         hasher512(&data)
     };
     let mut mix = [0u8; MIX_BYTES];
@@ -395,7 +395,7 @@ pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
 
 pub fn hashimoto_light_indices(
     header_hash: H256,
-    nonce: U64,
+    nonce: H64,
     full_size: u64,
     cache: &[u8],
 ) -> [usize; ACCESSES] {
