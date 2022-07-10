@@ -364,6 +364,7 @@ pub fn hashimoto_indices<F: Fn(usize) -> H512, HF512: Fn(&[u8]) -> [u8; 64]>(
         let mut data = [0u8; 40];
         data[..32].copy_from_slice(&header_hash.0);
         data[32..].copy_from_slice(&nonce.0);
+        data[32..].reverse();
         hasher512(&data)
     };
     let mut mix = [0u8; MIX_BYTES];
